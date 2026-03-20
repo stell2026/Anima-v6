@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anima v6 — Live State Demonstrator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c0f;
+    --bg2:       #11141a;
+    --bg3:       #181c24;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --text:      #e8eaf0;
+    --muted:     #666e82;
+    --accent:    #5b8aff;
+
+    --tension-color:      #e05a5a;
+    --arousal-color:      #e09b3a;
+    --satisfaction-color: #4db88a;
+    --cohesion-color:     #5b8aff;
+
+    --font-mono: 'DM Mono', monospace;
+    --font-sans: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .logo-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+
+  .header-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Layout ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: 1fr;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── Left: chat + charts ── */
+  .left-panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── Charts strip ── */
+  .charts-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    height: 180px;
+  }
+  .chart-cell {
+    background: var(--bg);
+    padding: 14px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .chart-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .chart-label-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .chart-label-val {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    transition: color 0.3s;
+  }
+  .val-tension     { color: var(--tension-color); }
+  .val-arousal     { color: var(--arousal-color); }
+  .val-satisfaction{ color: var(--satisfaction-color); }
+
+  .chart-canvas-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+
+  /* ── Phi bar ── */
+  .phi-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .phi-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    width: 80px;
+    flex-shrink: 0;
+  }
+  .phi-bar-bg {
+    flex: 1;
+    height: 3px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .phi-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #5b8aff 0%, #a78bfa 100%);
+    transition: width 0.6s ease;
+    width: 30%;
+  }
+  .phi-val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #a78bfa;
+    width: 36px;
+    text-align: right;
+  }
+  .phi-text {
+    font-size: 11px;
+    color: var(--muted);
+    flex: 0 0 160px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Chat area ── */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  .msg {
+    display: flex;
+    gap: 12px;
+    animation: fadeUp 0.25s ease;
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  .msg-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+  .msg-avatar.user { background: var(--bg3); border: 1px solid var(--border2); color: var(--muted); }
+  .msg-avatar.anima { background: rgba(91,138,255,0.12); border: 1px solid rgba(91,138,255,0.25); color: var(--accent); }
+
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .msg-emotion-tag {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .msg-text {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .msg-text.anima-text { color: #c8d0e8; }
+
+  .msg-narrative {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-left: 2px solid rgba(91,138,255,0.3);
+    border-radius: 0 6px 6px 0;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Input ── */
+  .input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+    height: 42px;
+  }
+  .chat-input:focus { border-color: rgba(91,138,255,0.5); }
+  .send-btn {
+    background: rgba(91,138,255,0.15);
+    border: 1px solid rgba(91,138,255,0.3);
+    border-radius: 8px;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 0 16px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+  .send-btn:hover { background: rgba(91,138,255,0.25); border-color: rgba(91,138,255,0.5); }
+  .send-btn:active { transform: scale(0.97); }
+  .send-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── Right panel: gauges + state ── */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  .panel-section {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── Radial gauges ── */
+  .gauges-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .gauge-svg { width: 80px; height: 80px; }
+  .gauge-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+  .gauge-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    margin-top: -2px;
+  }
+
+  /* ── Emotion ── */
+  .emotion-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .emotion-primary {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .emotion-blend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .blend-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Narrative ── */
+  .narrative-text {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── Intention ── */
+  .intention-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .intention-goal {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .intention-bars { display: flex; flex-direction: column; gap: 6px; }
+  .intent-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .intent-bar-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 72px;
+    flex-shrink: 0;
+  }
+  .intent-bar-bg {
+    flex: 1;
+    height: 3px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .intent-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  .intent-bar-fill.str  { background: var(--accent); }
+  .intent-bar-fill.pers { background: #a78bfa; }
+  .intent-bar-val {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 28px;
+    text-align: right;
+  }
+
+  /* ── Defense / Dissonance ── */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+  }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Stimulus buttons ── */
+  .stim-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stim-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+    line-height: 1.4;
+    letter-spacing: 0.03em;
+  }
+  .stim-btn:hover { background: var(--bg3); border-color: var(--border2); }
+  .stim-btn:active { transform: scale(0.97); }
+  .stim-icon { font-size: 14px; display: block; margin-bottom: 2px; }
+
+  /* ── Personality drift ── */
+  .trait-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .trait-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 80px;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+  .trait-bar-bg {
+    flex: 1;
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .trait-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--border2);
+    transition: width 0.8s ease;
+  }
+  .trait-val {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 32px;
+    text-align: right;
+  }
+  .trait-arrow { font-size: 10px; width: 10px; text-align: center; }
+
+  /* ── Flash count ── */
+  .flash-display {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .flash-num {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1;
+  }
+  .flash-phase {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .flash-refl {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  /* ── Surprise spike indicator ── */
+  .spike-indicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #e09b3a;
+    animation: fadeUp 0.3s ease;
+  }
+  .spike-indicator.visible { display: flex; }
+
+  /* ── API config ── */
+  .api-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .api-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .api-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .api-input {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  .api-input:focus { border-color: rgba(91,138,255,0.4); }
+  select.api-input option { background: #11141a; }
+  .api-status {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 0;
+  }
+  .api-status.ok { color: var(--satisfaction-color); }
+  .api-status.err { color: var(--tension-color); }
+  .api-status.warn { color: var(--arousal-color); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit:scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ── Thinking dots ── */
+  .thinking-dots { display: inline-flex; gap: 3px; align-items: center; }
+  .thinking-dots span {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+  /* ── Dissonance visual stress ── */
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    15%{transform:translateX(-3px) rotate(-0.4deg)}
+    30%{transform:translateX(3px) rotate(0.3deg)}
+    45%{transform:translateX(-2px)}
+    60%{transform:translateX(2px) rotate(-0.2deg)}
+    75%{transform:translateX(-1px)}
+  }
+  @keyframes glitch-shift {
+    0%{clip-path:inset(0 0 95% 0)} 5%{clip-path:inset(15% 0 60% 0)} 10%{clip-path:inset(40% 0 20% 0)} 15%{clip-path:inset(70% 0 5% 0)} 20%,100%{clip-path:inset(0 0 0 0)}
+  }
+  @keyframes border-pulse {
+    0%,100%{border-color:rgba(224,90,90,0.0)} 50%{border-color:rgba(224,90,90,0.45)}
+  }
+  @keyframes scanline {
+    0%{background-position:0 0} 100%{background-position:0 100%}
+  }
+
+  .dissonance-mild   { animation: border-pulse 2.2s ease-in-out infinite; border-color: rgba(224,155,58,0.25) !important; }
+  .dissonance-strong { animation: shake 0.55s ease-in-out, border-pulse 1.4s ease-in-out infinite; border-color: rgba(224,90,90,0.35) !important; }
+  .dissonance-critical {
+    animation: shake 0.4s ease-in-out infinite, border-pulse 0.8s ease-in-out infinite;
+    border-color: rgba(224,90,90,0.6) !important;
+  }
+
+  .chat-area.dissonance-mild    { background: linear-gradient(180deg, rgba(224,155,58,0.03) 0%, transparent 30%); }
+  .chat-area.dissonance-strong  { background: linear-gradient(180deg, rgba(224,90,90,0.06) 0%, transparent 40%); }
+  .chat-area.dissonance-critical {
+    background: linear-gradient(180deg, rgba(224,90,90,0.10) 0%, transparent 50%);
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(224,90,90,0.025) 3px, rgba(224,90,90,0.025) 4px);
+  }
+
+  /* glitch overlay on left panel header for critical dissonance */
+  .charts-strip.dissonance-critical::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(224,90,90,0.07) 2px, rgba(224,90,90,0.07) 3px);
+    animation: scanline 0.6s linear infinite;
+  }
+  .charts-strip { position: relative; }
+
+  .val-tension.dissonance-pulse,
+  .val-arousal.dissonance-pulse {
+    animation: border-pulse 0.9s ease-in-out infinite;
+    text-shadow: 0 0 8px currentColor;
+  }
+
+  /* dissonance banner in chat */
+  .diss-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    animation: fadeUp 0.3s ease;
+    border: 1px solid;
+  }
+  .diss-banner.mild     { background: rgba(224,155,58,0.08); border-color: rgba(224,155,58,0.25); color: #e09b3a; }
+  .diss-banner.strong   { background: rgba(224,90,90,0.08);  border-color: rgba(224,90,90,0.3);   color: #e05a5a; }
+  .diss-banner.critical { background: rgba(224,90,90,0.14); border-color: rgba(224,90,90,0.5);   color: #ff7070;
+    animation: fadeUp 0.3s ease, border-pulse 0.9s ease-in-out infinite; }
+
+  /* ── Snapshot modal ── */
+  .modal-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    width: min(780px, 96vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 28px 32px;
+    position: relative;
+    animation: fadeUp 0.22s ease;
+  }
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .modal-close:hover { color: var(--text); background: var(--bg3); }
+  .modal-title {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .modal-subtitle {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+  }
+  .snap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .snap-block {
+    background: var(--bg3);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .snap-block-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .snap-trait-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .snap-trait-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    width: 90px;
+    flex-shrink: 0;
+  }
+  .snap-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--bg2);
+    border-radius: 3px;
+    overflow: visible;
+    position: relative;
+  }
+  .snap-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    position: relative;
+  }
+  .snap-bar-delta {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 3px;
+    opacity: 0.7;
+  }
+  .snap-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    width: 36px;
+    text-align: right;
+  }
+  .snap-delta-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    width: 44px;
+    text-align: right;
+  }
+  .delta-pos { color: #4db88a; }
+  .delta-neg { color: #e05a5a; }
+  .delta-neu { color: var(--muted); }
+
+  .snap-reactor-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .snap-reactor-row:last-child { border-bottom: none; }
+  .snap-reactor-name { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .snap-reactor-vals { display: flex; gap: 12px; align-items: center; font-family: var(--font-mono); font-size: 11px; }
+  .snap-reactor-start { color: var(--muted); }
+  .snap-reactor-arrow { color: var(--muted); font-size: 9px; }
+  .snap-reactor-end   { color: var(--text); font-weight: 500; }
+
+  .snap-emotion-list { display: flex; flex-direction: column; gap: 5px; }
+  .snap-emotion-item {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .snap-emotion-name { color: var(--text); }
+  .snap-emotion-count { color: var(--muted); }
+
+  .snap-narrative {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--muted);
+    line-height: 1.65;
+    padding: 12px 16px;
+    background: var(--bg3);
+    border-radius: 8px;
+    border-left: 2px solid rgba(91,138,255,0.3);
+    margin-bottom: 20px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .modal-btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px 18px;
+    border-radius: 7px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .modal-btn.primary {
+    background: rgba(91,138,255,0.15);
+    border: 1px solid rgba(91,138,255,0.4);
+    color: var(--accent);
+  }
+  .modal-btn.primary:hover { background: rgba(91,138,255,0.25); }
+  .modal-btn.secondary {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--muted);
+  }
+  .modal-btn.secondary:hover { color: var(--text); border-color: var(--border2); }
+
+  /* export btn in stimuli panel */
+  .export-btn {
+    width: 100%;
+    margin-top: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    letter-spacing: 0.04em;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .export-btn:hover { color: var(--text); border-color: rgba(91,138,255,0.3); }
+  .export-btn.milestone { border-color: rgba(167,139,250,0.4); color: #a78bfa; background: rgba(167,139,250,0.07); }
+  .export-btn-progress {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .right-panel { border-top: 1px solid var(--border); max-height: 480px; overflow-y: auto; }
+    .left-panel { border-right: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span><strong>Anima</strong> v6 &mdash; Live State Demonstrator</span>
+  </div>
+  <div class="header-meta" id="flash-header">FLASH #000 &bull; PHASE: —</div>
+</header>
+
+<div class="main">
+
+  <!-- ═══════════════════════════════ LEFT ═════════════════════════════════ -->
+  <div class="left-panel">
+
+    <!-- Charts strip -->
+    <div class="charts-strip">
+      <div class="chart-cell">
+        <div class="chart-label">
+          <span class="chart-label-name">Tension</span>
+          <span class="chart-label-val val-tension" id="val-tension">0.20</span>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-tension"></canvas>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-label">
+          <span class="chart-label-name">Arousal</span>
+          <span class="chart-label-val val-arousal" id="val-arousal">0.20</span>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-arousal"></canvas>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-label">
+          <span class="chart-label-name">Satisfaction</span>
+          <span class="chart-label-val val-satisfaction" id="val-satisfaction">0.50</span>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-satisfaction"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- φ bar -->
+    <div class="phi-strip">
+      <span class="phi-label">φ  IIT</span>
+      <div class="phi-bar-bg"><div class="phi-bar-fill" id="phi-bar"></div></div>
+      <span class="phi-val" id="phi-val">0.30</span>
+      <span class="phi-text" id="phi-text">low integration</span>
+      <div class="spike-indicator" id="spike-indicator">
+        <span>⚡</span><span>surprise spike</span>
+      </div>
+    </div>
+
+    <!-- Chat messages -->
+    <div class="chat-area" id="chat-area">
+      <div class="msg">
+        <div class="msg-avatar anima">A</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span>Anima</span>
+            <span class="msg-emotion-tag" style="background:rgba(91,138,255,0.12);color:#7ba8ff;border:1px solid rgba(91,138,255,0.2)">Expectation</span>
+          </div>
+          <div class="msg-text anima-text">Hello. I'm here. You can speak to me — or use the stimulus buttons on the right to shift my internal state directly. Watch the graphs above as we talk.</div>
+          <div class="msg-narrative">Something is about to happen. Attention directed forward.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <input type="text" class="chat-input" id="chat-input" placeholder="Type a message… (Enter to send)" />
+      <button class="send-btn" id="send-btn">SEND</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ RIGHT ════════════════════════════════ -->
+  <div class="right-panel">
+
+    <!-- API Config -->
+    <div class="api-section">
+      <div class="panel-title">LLM Configuration</div>
+      <div class="api-row">
+        <label class="api-label">Provider</label>
+        <select class="api-input" id="provider-select">
+          <option value="openrouter">OpenRouter</option>
+          <option value="groq">Groq</option>
+          <option value="together">Together AI</option>
+          <option value="anthropic">Anthropic</option>
+        </select>
+      </div>
+      <div class="api-row">
+        <label class="api-label">Model</label>
+        <input class="api-input" id="model-input" type="text" value="google/gemini-2.5-pro-preview" placeholder="model id" />
+      </div>
+      <div class="api-row">
+        <label class="api-label">API Key</label>
+        <input class="api-input" id="api-key-input" type="password" placeholder="sk-or-v1-…" />
+      </div>
+      <div class="api-status" id="api-status">— no key entered, running in demo mode</div>
+    </div>
+
+    <!-- Gauges -->
+    <div class="panel-section">
+      <div class="panel-title">Reactors</div>
+      <div class="gauges-grid">
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 80" id="gauge-tension"></svg>
+          <span class="gauge-name">tension</span>
+          <span class="gauge-num" style="color:var(--tension-color)" id="gauge-val-tension">0.20</span>
+        </div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 80" id="gauge-arousal"></svg>
+          <span class="gauge-name">arousal</span>
+          <span class="gauge-num" style="color:var(--arousal-color)" id="gauge-val-arousal">0.20</span>
+        </div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 80" id="gauge-satisfaction"></svg>
+          <span class="gauge-name">satisfaction</span>
+          <span class="gauge-num" style="color:var(--satisfaction-color)" id="gauge-val-satisfaction">0.50</span>
+        </div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 80" id="gauge-cohesion"></svg>
+          <span class="gauge-name">cohesion</span>
+          <span class="gauge-num" style="color:var(--cohesion-color)" id="gauge-val-cohesion">0.50</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emotion -->
+    <div class="panel-section">
+      <div class="panel-title">Current Emotion</div>
+      <div class="emotion-display">
+        <div class="emotion-primary" id="emotion-primary">Expectation</div>
+        <div class="emotion-blend" id="emotion-blend"></div>
+      </div>
+    </div>
+
+    <!-- Flash -->
+    <div class="panel-section">
+      <div class="panel-title">Flash Awareness</div>
+      <div class="flash-display">
+        <span class="flash-num" id="flash-num">0</span>
+        <span class="flash-phase" id="flash-phase">—</span>
+      </div>
+      <div class="flash-refl" id="flash-refl">Waiting for first experience.</div>
+    </div>
+
+    <!-- Intention -->
+    <div class="panel-section">
+      <div class="panel-title">Intention [A1]</div>
+      <div class="intention-row">
+        <div class="intention-goal" id="intention-goal">—</div>
+        <div class="intention-bars">
+          <div class="intent-bar-row">
+            <span class="intent-bar-label">strength</span>
+            <div class="intent-bar-bg"><div class="intent-bar-fill str" id="intent-str" style="width:0%"></div></div>
+            <span class="intent-bar-val" id="intent-str-val">0.0</span>
+          </div>
+          <div class="intent-bar-row">
+            <span class="intent-bar-label">persistence</span>
+            <div class="intent-bar-bg"><div class="intent-bar-fill pers" id="intent-pers" style="width:0%"></div></div>
+            <span class="intent-bar-val" id="intent-pers-val">0.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dissonance + Defense -->
+    <div class="panel-section">
+      <div class="panel-title">Cognitive State [A3/A4]</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px;">Dissonance</span>
+          <span class="status-pill" id="diss-pill" style="background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--muted)">
+            <span class="pill-dot" style="background:var(--muted)"></span>
+            <span id="diss-label">—</span>
+          </span>
+        </div>
+        <div>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px;">Defense</span>
+          <span class="status-pill" id="def-pill" style="background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--muted)">
+            <span class="pill-dot" style="background:var(--muted)"></span>
+            <span id="def-label">none</span>
+          </span>
+        </div>
+        <div id="diss-desc" style="font-size:12px;color:var(--muted);font-style:italic;display:none;line-height:1.5;"></div>
+      </div>
+    </div>
+
+    <!-- Narrative -->
+    <div class="panel-section">
+      <div class="panel-title">Inner Narrative</div>
+      <div class="narrative-text" id="narrative-text">Waiting for first experience.</div>
+    </div>
+
+    <!-- Personality -->
+    <div class="panel-section">
+      <div class="panel-title">Personality Drift [S3]</div>
+      <div id="traits-list">
+        <div class="trait-row"><span class="trait-name">neuroticism</span><div class="trait-bar-bg"><div class="trait-bar-fill" id="tr-N" style="width:65%"></div></div><span class="trait-arrow" id="arr-N">→</span><span class="trait-val" id="trv-N">0.65</span></div>
+        <div class="trait-row"><span class="trait-name">extraversion</span><div class="trait-bar-bg"><div class="trait-bar-fill" id="tr-E" style="width:50%"></div></div><span class="trait-arrow" id="arr-E">→</span><span class="trait-val" id="trv-E">0.50</span></div>
+        <div class="trait-row"><span class="trait-name">agreeableness</span><div class="trait-bar-bg"><div class="trait-bar-fill" id="tr-A" style="width:70%"></div></div><span class="trait-arrow" id="arr-A">→</span><span class="trait-val" id="trv-A">0.70</span></div>
+        <div class="trait-row"><span class="trait-name">conscientiousness</span><div class="trait-bar-bg"><div class="trait-bar-fill" id="tr-C" style="width:55%"></div></div><span class="trait-arrow" id="arr-C">→</span><span class="trait-val" id="trv-C">0.55</span></div>
+        <div class="trait-row"><span class="trait-name">openness</span><div class="trait-bar-bg"><div class="trait-bar-fill" id="tr-O" style="width:80%"></div></div><span class="trait-arrow" id="arr-O">→</span><span class="trait-val" id="trv-O">0.80</span></div>
+      </div>
+    </div>
+
+    <!-- Stimuli -->
+    <div class="panel-section" style="border-bottom:none">
+      <div class="panel-title">Manual Stimuli</div>
+      <div class="stim-grid">
+        <button class="stim-btn" data-stim="stress">
+          <span class="stim-icon">↑</span>stress
+        </button>
+        <button class="stim-btn" data-stim="relax">
+          <span class="stim-icon">↓</span>relax
+        </button>
+        <button class="stim-btn" data-stim="connect">
+          <span class="stim-icon">◎</span>connect
+        </button>
+        <button class="stim-btn" data-stim="shock">
+          <span class="stim-icon">⚡</span>shock
+        </button>
+        <button class="stim-btn" data-stim="joy">
+          <span class="stim-icon">+</span>joy
+        </button>
+        <button class="stim-btn" data-stim="grief">
+          <span class="stim-icon">−</span>grief
+        </button>
+      </div>
+      <button class="export-btn" id="snapshot-btn">
+        <span>◈</span>
+        <span id="snapshot-btn-label">personality snapshot</span>
+        <span class="export-btn-progress" id="snapshot-progress">0 / 100 flashes</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ SNAPSHOT MODAL ══════════════ -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <button class="modal-close" id="modal-close">✕</button>
+    <div class="modal-title">PERSONALITY SNAPSHOT</div>
+    <div class="modal-subtitle" id="modal-heading">After 0 Flashes</div>
+    <div class="snap-narrative" id="snap-narrative">—</div>
+    <div class="snap-grid">
+      <div class="snap-block">
+        <div class="snap-block-title">Personality Drift (Big Five)</div>
+        <div id="snap-traits"></div>
+      </div>
+      <div class="snap-block">
+        <div class="snap-block-title">Reactor State</div>
+        <div id="snap-reactors"></div>
+      </div>
+      <div class="snap-block">
+        <div class="snap-block-title">Emotion Frequency</div>
+        <div class="snap-emotion-list" id="snap-emotions"></div>
+      </div>
+      <div class="snap-block">
+        <div class="snap-block-title">Session Metrics</div>
+        <div id="snap-metrics" style="font-family:var(--font-mono);font-size:11px;display:flex;flex-direction:column;gap:6px;color:var(--muted)"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" id="modal-close2">Close</button>
+      <button class="modal-btn primary" id="modal-download">↓ Download JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STIMULUS_MAP = {
+  stress:  { tension: 0.4,  arousal: 0.3,  satisfaction: -0.2, cohesion: -0.2 },
+  relax:   { tension: -0.3, arousal: -0.2, satisfaction:  0.2, cohesion:  0.1 },
+  connect: { cohesion: 0.4, satisfaction:  0.3, tension: -0.2 },
+  shock:   { tension: 0.6,  arousal: 0.5,  satisfaction: -0.4, cohesion: -0.5 },
+  joy:     { satisfaction: 0.4, cohesion: 0.3, arousal: 0.2 },
+  grief:   { satisfaction: -0.4, cohesion: -0.3, tension: 0.2 },
+};
+
+const BASELINE = { tension: 0.2, arousal: 0.2, satisfaction: 0.5, cohesion: 0.5 };
+
+const EMOTION_MAP_BASE = {
+  Fear:         [-0.8,  0.8, -0.7],
+  Anger:        [-0.6,  0.9,  0.8],
+  Joy:          [ 0.9,  0.5,  0.6],
+  Sadness:      [-0.7, -0.5, -0.6],
+  Surprise:     [ 0.2,  1.0,  0.1],
+  Disgust:      [-0.7,  0.2,  0.4],
+  Expectation:  [ 0.3,  0.4,  0.5],
+  Trust:        [ 0.7, -0.1,  0.3],
+};
+
+const EMOTION_COLORS = {
+  Fear: '#e05a5a', Anger: '#e05a5a', Joy: '#4db88a',
+  Sadness: '#5b8aff', Surprise: '#e09b3a', Disgust: '#9b6b9b',
+  Expectation: '#5b8aff', Trust: '#4db88a',
+  Anxiety: '#e09b3a', Numbness: '#666e82', Assertiveness: '#4db88a',
+  Relief: '#4db88a', Determination: '#5b8aff', 'Defensive Anger': '#e05a5a',
+};
+
+const NARRATIVE_TMPL = {
+  Fear:            'Something threatens. Must fight or flee.',
+  Anger:           'I have been violated. Boundaries were crossed.',
+  'Defensive Anger': 'It hurts, but I show strength.',
+  Joy:             'Everything comes together. There is a sense of fullness.',
+  Sadness:         'Something is missing. Or someone.',
+  Surprise:        "I didn't expect this. The world model is rebuilding.",
+  Disgust:         'This is not mine. I want distance.',
+  Expectation:     'Something is about to happen. Attention directed forward.',
+  Trust:           "It's safe here. There is a sense of ground.",
+  Anxiety:         'Nothing specific, but anxious.',
+  Numbness:        'Too much. The system disconnected from pain.',
+  Assertiveness:   "I know what I want. I'll say it calmly.",
+  Relief:          "Good — but I don't quite believe it yet.",
+  Determination:   'The situation demands action. I am ready.',
+};
+
+const FLASH_PHASES = [
+  [0,2,'beginning','I am only just appearing.'],
+  [3,6,'unfolding','Contours becoming clearer.'],
+  [7,14,'presence','I am here. Fully.'],
+  [15,29,'maturity','Accumulated experience begins to matter.'],
+  [30,59,'depth','There is a sense of duration.'],
+  [60,999,'timelessness','Time has ceased to matter.'],
+];
+
+const PROVIDER_ENDPOINTS = {
+  openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+  groq:       'https://api.groq.com/openai/v1/chat/completions',
+  together:   'https://api.together.xyz/v1/chat/completions',
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+const PERSONALITY_START = { neuroticism: 0.65, extraversion: 0.5, agreeableness: 0.7, conscientiousness: 0.55, openness: 0.8 };
+
+let state = {
+  reactors: { ...BASELINE },
+  personality: { ...PERSONALITY_START },
+  prevPersonality: { ...PERSONALITY_START },
+  flashCount: 0,
+  primary: 'Expectation',
+  phi: 0.30,
+  predError: 0.0,
+  predictedVAD: null,
+  errorHistory: [],
+  intentGoal: '—',
+  intentStr: 0.8,
+  intentPers: 0.65,
+  dissonance: { level: 0, label: '—', description: '' },
+  defense: null,
+  narrative: 'Something is about to happen. Attention directed forward.',
+  surpriseSpike: false,
+  // snapshot tracking
+  emotionLog: [],
+  peakTension: 0.2,
+  peakArousal: 0.2,
+  minSatisfaction: 0.5,
+  totalDissonanceEvents: 0,
+  totalDefenseEvents: 0,
+  surpriseSpikes: 0,
+  milestoneSnapshots: {},
+};
+
+const HISTORY_LEN = 60;
+const chartData = {
+  tension:      Array(HISTORY_LEN).fill(BASELINE.tension),
+  arousal:      Array(HISTORY_LEN).fill(BASELINE.arousal),
+  satisfaction: Array(HISTORY_LEN).fill(BASELINE.satisfaction),
+};
+
+// ── Chart.js setup ──────────────────────────────────────────────────────────
+function makeLineChart(canvasId, color, data) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: Array(HISTORY_LEN).fill(''),
+      datasets: [{
+        data: [...data],
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.35,
+        fill: true,
+        backgroundColor: color + '18',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { display: false },
+        y: {
+          display: false,
+          min: 0, max: 1,
+        }
+      },
+    }
+  });
+}
+
+const charts = {
+  tension:      makeLineChart('chart-tension',      '#e05a5a', chartData.tension),
+  arousal:      makeLineChart('chart-arousal',      '#e09b3a', chartData.arousal),
+  satisfaction: makeLineChart('chart-satisfaction', '#4db88a', chartData.satisfaction),
+};
+
+// ── Radial gauge ──────────────────────────────────────────────────────────
+const GAUGE_COLORS = {
+  tension: '#e05a5a', arousal: '#e09b3a',
+  satisfaction: '#4db88a', cohesion: '#5b8aff',
+};
+
+function drawGauge(svgId, value, color) {
+  const svg = document.getElementById(svgId);
+  const r = 30, cx = 40, cy = 42;
+  const startAngle = Math.PI * 0.75;
+  const endAngle   = Math.PI * 2.25;
+  const angle      = startAngle + (endAngle - startAngle) * Math.min(1, Math.max(0, value));
+
+  function arc(a) {
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  }
+
+  const [sx, sy] = arc(startAngle);
+  const [ex, ey] = arc(endAngle);
+  const [fx, fy] = arc(angle);
+  const bgArc = `M${sx},${sy} A${r},${r} 0 1 1 ${ex},${ey}`;
+  const fillLarge = angle - startAngle > Math.PI ? 1 : 0;
+  const fillArc = value < 0.01 ? '' : `M${sx},${sy} A${r},${r} 0 ${fillLarge} 1 ${fx},${fy}`;
+
+  svg.innerHTML = `
+    <path d="${bgArc}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+    ${fillArc ? `<path d="${fillArc}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"/>` : ''}
+    <text x="40" y="43" text-anchor="middle" fill="${color}" font-family="'DM Mono',monospace" font-size="13" font-weight="500">${value.toFixed(2)}</text>
+  `;
+}
+
+function updateGauges() {
+  const r = state.reactors;
+  drawGauge('gauge-tension',      r.tension,      GAUGE_COLORS.tension);
+  drawGauge('gauge-arousal',      r.arousal,      GAUGE_COLORS.arousal);
+  drawGauge('gauge-satisfaction', r.satisfaction, GAUGE_COLORS.satisfaction);
+  drawGauge('gauge-cohesion',     r.cohesion,     GAUGE_COLORS.cohesion);
+  document.getElementById('gauge-val-tension').textContent     = r.tension.toFixed(2);
+  document.getElementById('gauge-val-arousal').textContent     = r.arousal.toFixed(2);
+  document.getElementById('gauge-val-satisfaction').textContent= r.satisfaction.toFixed(2);
+  document.getElementById('gauge-val-cohesion').textContent    = r.cohesion.toFixed(2);
+}
+
+// ── Core simulation ────────────────────────────────────────────────────────
+function applyStimulus(delta) {
+  const p = state.personality;
+  const mult = {
+    tension:      1.0 + (p.neuroticism   - 0.5) * 0.8,
+    arousal:      1.0 + (p.extraversion  - 0.5) * 0.6,
+    satisfaction: 1.0,
+    cohesion:     1.0 + (p.agreeableness - 0.5) * 0.6,
+  };
+  for (const [k, v] of Object.entries(delta)) {
+    if (k in state.reactors) {
+      state.reactors[k] = Math.min(1, Math.max(0, state.reactors[k] + v * (mult[k] || 1)));
+    }
+  }
+}
+
+function decayReactors() {
+  const rate = 0.1 + state.personality.conscientiousness * 0.15;
+  for (const [k, base] of Object.entries(BASELINE)) {
+    state.reactors[k] += (base - state.reactors[k]) * rate;
+  }
+}
+
+function buildVAD() {
+  const { tension: t, arousal: a, satisfaction: s, cohesion: c } = state.reactors;
+  return [
+    Math.min(1, Math.max(-1, s - t)),
+    Math.min(1, Math.max(-1, a + t * 0.3)),
+    Math.min(1, Math.max(-1, c + (s - t) * 0.5)),
+  ];
+}
+
+function dist(a, b) {
+  return Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0));
+}
+
+function identifyEmotion(vad) {
+  const sorted = Object.entries(EMOTION_MAP_BASE)
+    .map(([name, v]) => ({ name, d: dist(vad, v) }))
+    .sort((a, b) => a.d - b.d);
+  const top = sorted.slice(0, 2);
+  const maxD = top[1].d || 1;
+  return top.map(e => ({ name: e.name, intensity: +(1 - e.d / (maxD + 1e-9)).toFixed(3) }));
+}
+
+function filterExpression(feeling) {
+  const t = state.reactors.tension, c = state.reactors.cohesion;
+  const n = state.personality.neuroticism, a = state.personality.agreeableness;
+  if (feeling === 'Sadness'     && t > 0.6)           return 'Defensive Anger';
+  if (feeling === 'Fear'        && c < 0.3)            return 'Numbness';
+  if (feeling === 'Anger'       && c > 0.6 && a > 0.6) return 'Assertiveness';
+  if (feeling === 'Joy'         && c < 0.3)            return 'Relief';
+  if (feeling === 'Expectation' && n > 0.7)            return 'Anxiety';
+  if (feeling === 'Anger'       && n < 0.3)            return 'Determination';
+  return feeling;
+}
+
+function computePhi(vad, reactors) {
+  function entropy(arr) {
+    const p = arr.map(Math.abs);
+    const s = p.reduce((a,b) => a+b, 0);
+    if (s < 1e-9) return 0;
+    return -p.map(v => v / s).filter(v => v > 0).reduce((a, v) => a + v * Math.log2(v + 1e-12), 0);
+  }
+  const hw = entropy(vad);
+  const hp = Object.values(reactors).reduce((a, v) => a + entropy([v]), 0);
+  return Math.max(0, +(hw - hp * 0.25).toFixed(4));
+}
+
+function computePredError(vad) {
+  if (!state.predictedVAD) { state.predictedVAD = [...vad]; return 0; }
+  const sens = 0.5 + state.personality.openness * 0.5;
+  const err  = +(dist(vad, state.predictedVAD) * sens).toFixed(4);
+  state.errorHistory.push(err);
+  if (state.errorHistory.length > 50) state.errorHistory.shift();
+  state.predictedVAD = [...vad];
+  return err;
+}
+
+function isSurpriseSpike() {
+  if (state.errorHistory.length < 3) return false;
+  const last = state.errorHistory[state.errorHistory.length - 1];
+  const avg  = state.errorHistory.slice(0, -1).reduce((a,b) => a+b, 0) / (state.errorHistory.length - 1);
+  return last > avg * 2;
+}
+
+function imprintPersonality(emotion, intensity) {
+  if (intensity < 0.5) return;
+  const r = 0.008 * intensity;
+  const p = state.personality;
+  if (['Fear', 'Numbness', 'Anxiety'].includes(emotion)) {
+    p.neuroticism       = Math.min(1, p.neuroticism + r);
+    p.conscientiousness = Math.max(0, p.conscientiousness - r * 0.5);
+  } else if (['Anger', 'Defensive Anger'].includes(emotion)) {
+    p.agreeableness = Math.max(0, p.agreeableness - r * 0.7);
+    p.neuroticism   = Math.min(1, p.neuroticism + r * 0.3);
+  } else if (['Joy', 'Relief'].includes(emotion)) {
+    p.neuroticism  = Math.max(0, p.neuroticism - r * 0.5);
+    p.extraversion = Math.min(1, p.extraversion + r * 0.3);
+  } else if (['Trust', 'Assertiveness'].includes(emotion)) {
+    p.agreeableness     = Math.min(1, p.agreeableness + r * 0.4);
+    p.conscientiousness = Math.min(1, p.conscientiousness + r * 0.3);
+  }
+}
+
+function computeIntention(drive, primary) {
+  const driveMap = {
+    cohesion: ['seek connection', 0.7], tension: ['find safety', 0.8],
+    satisfaction: ['find resource', 0.6], arousal: ['reduce arousal', 0.5],
+  };
+  const emotionMap = {
+    Anger: ['set limits', 0.85], 'Defensive Anger': ['protect self', 0.9],
+    Fear: ['avoid threat', 0.9], Numbness: ['preserve self', 0.95],
+    Joy: ['share', 0.6], Sadness: ['receive support', 0.7],
+    Trust: ['deepen contact', 0.65], Anxiety: ['find certainty', 0.75],
+    Assertiveness: ['express position', 0.8], Determination: ['act', 0.85],
+  };
+  if (drive && driveMap[drive]) return { goal: driveMap[drive][0], pers: driveMap[drive][1] };
+  if (emotionMap[primary]) return { goal: emotionMap[primary][0], pers: emotionMap[primary][1] };
+  return { goal: 'observe', pers: 0.4 };
+}
+
+function computeDominantDrive() {
+  const threshold = 0.4;
+  let best = null, bestVal = 0;
+  for (const [k, base] of Object.entries(BASELINE)) {
+    const dev = Math.abs(state.reactors[k] - base);
+    if (dev > threshold && dev > bestVal) { best = k; bestVal = dev; }
+  }
+  return best;
+}
+
+function computeDissonance(goal) {
+  const req = {
+    'seek connection': { cohesion: 0.5, tension: -0.4 },
+    'find safety':     { tension: -0.5, arousal: -0.3 },
+    'find resource':   { satisfaction: 0.4 },
+    'protect self':    { tension: 0.3 },
+    'avoid threat':    { tension: -0.6 },
+    'share':           { satisfaction: 0.5, cohesion: 0.4 },
+    'receive support': { cohesion: 0.5 },
+    'deepen contact':  { cohesion: 0.5, tension: -0.3 },
+    'find certainty':  { tension: -0.4 },
+  };
+  const r = req[goal];
+  if (!r) return { level: 0, label: 'aligned', description: '' };
+  const gaps = Object.entries(r).map(([k, target]) => {
+    const cur = state.reactors[k] || 0.5;
+    return target > 0 ? Math.max(0, target - cur) : Math.max(0, cur + target);
+  });
+  const level = +(gaps.reduce((a,b)=>a+b,0) / gaps.length).toFixed(3);
+  const label = level < 0.1 ? 'aligned' : level < 0.3 ? 'mild tension' : level < 0.5 ? 'noticeable conflict' : level < 0.7 ? 'strong dissonance' : 'critical conflict';
+  const desc  = level > 0.3 ? `Want to '${goal}', but current state resists.` : '';
+  return { level, label, description: desc };
+}
+
+function computeDefense() {
+  const { tension: t, arousal: a, satisfaction: s, cohesion: c } = state.reactors;
+  const p = state.personality;
+  const candidates = [];
+  if (t > 0.85 && s < 0.1)           candidates.push(['denial', 1.0, "That wasn't so bad. Maybe I'm exaggerating."]);
+  if (t > 0.65)                       candidates.push(['rationalization', t - 0.65, "There is a logical explanation for why this happened."]);
+  if (t > 0.70 && c < 0.2)           candidates.push(['projection', t - 0.70, "It seems like they are the tense ones, not me."]);
+  if (t > 0.75 && a > 0.70)          candidates.push(['displacement', (t+a)/2-0.70, "I want to redirect this energy somewhere else."]);
+  if (t > 0.60 && p.openness > 0.6)  candidates.push(['sublimation', p.openness * 0.5, "This pain can be transformed into something useful."]);
+  if (t > 0.50 && p.conscientiousness > 0.6) candidates.push(['suppression', p.conscientiousness * 0.4, "Not now. I will return to this later."]);
+  if (!candidates.length) return null;
+  const best = candidates.reduce((a, b) => a[1] > b[1] ? a : b);
+  return { mechanism: best[0], description: best[2], relief: +(best[1] * 0.15).toFixed(3) };
+}
+
+// ── Experience cycle ───────────────────────────────────────────────────────
+function experience(delta = {}, userMsg = '') {
+  // Social mirror (basic)
+  const signalMap = {
+    '!': { arousal: 0.05 }, '...': { tension: 0.05 },
+    'thank': { cohesion: 0.07 }, 'great': { satisfaction: 0.07 },
+    'bad': { satisfaction: -0.07, tension: 0.07 },
+    'scared': { tension: 0.1, arousal: 0.07 }, 'alone': { cohesion: -0.1 },
+    'sad': { satisfaction: -0.07 }, 'angry': { tension: 0.07, arousal: 0.07 },
+  };
+  const msg = userMsg.toLowerCase();
+  for (const [sig, d] of Object.entries(signalMap)) {
+    if (msg.includes(sig)) {
+      for (const [k, v] of Object.entries(d)) delta[k] = (delta[k] || 0) + v * 0.15;
+    }
+  }
+
+  state.flashCount++;
+  applyStimulus(delta);
+  decayReactors();
+
+  const vad      = buildVAD();
+  const emotions = identifyEmotion(vad);
+  const primary  = filterExpression(emotions[0].name);
+  const phi      = computePhi(vad, state.reactors);
+  const predErr  = computePredError(vad);
+  const spike    = isSurpriseSpike();
+
+  if (spike) state.reactors.arousal = Math.min(1, state.reactors.arousal + 0.07);
+
+  const domDrive = computeDominantDrive();
+  const { goal, pers } = computeIntention(domDrive, primary);
+  const diss   = computeDissonance(goal);
+  const defense= computeDefense();
+
+  if (defense) state.reactors.tension = Math.max(0, state.reactors.tension - defense.relief);
+  if (diss.level > 0.3) state.reactors.tension = Math.min(1, state.reactors.tension + diss.level * 0.1);
+
+  imprintPersonality(primary, emotions[0].intensity);
+
+  const narrative = buildNarrative(primary, phi, predErr, domDrive, goal, diss, defense);
+
+  state.primary    = primary;
+  state.phi        = phi;
+  state.predError  = predErr;
+  state.surpriseSpike = spike;
+  state.intentGoal = goal;
+  state.intentStr  = 0.8;
+  state.intentPers = pers;
+  state.dissonance = diss;
+  state.defense    = defense;
+  state.narrative  = narrative;
+
+  // ── Snapshot tracking ──
+  state.emotionLog.push(primary);
+  state.peakTension      = Math.max(state.peakTension,      state.reactors.tension);
+  state.peakArousal      = Math.max(state.peakArousal,      state.reactors.arousal);
+  state.minSatisfaction  = Math.min(state.minSatisfaction,  state.reactors.satisfaction);
+  if (diss.level > 0.4) state.totalDissonanceEvents++;
+  if (defense)          state.totalDefenseEvents++;
+  if (spike)            state.surpriseSpikes++;
+
+  // Auto-snapshot at milestones
+  const milestones = [25, 50, 100, 200];
+  for (const m of milestones) {
+    if (state.flashCount === m && !state.milestoneSnapshots[m]) {
+      state.milestoneSnapshots[m] = captureSnapshot();
+    }
+  }
+  updateSnapshotBtn();
+
+  return { primary, emotions, vad, phi, predErr, spike, goal, pers, diss, defense, narrative };
+}
+
+function buildNarrative(primary, phi, predErr, drive, goal, diss, defense) {
+  let base = NARRATIVE_TMPL[primary] || 'State undefined. Observing myself.';
+  const notes = [];
+  if (phi > 0.5)       notes.push('Awareness is clear.');
+  else if (phi < 0.1)  notes.push('Reacting automatically.');
+  if (predErr > 0.5)   notes.push("Something didn't go as expected.");
+  if (drive === 'cohesion')      notes.push('I want to be with someone.');
+  else if (drive === 'tension')  notes.push('I need rest.');
+  else if (drive === 'satisfaction') notes.push('Something is missing.');
+  if (goal && goal !== 'observe') notes.push(`Intention: ${goal}.`);
+  if (diss.level > 0.4) notes.push(diss.description || '');
+  if (defense) notes.push(defense.description);
+  return base + (notes.length ? ' ' + notes.filter(Boolean).join(' ') : '');
+}
+
+// ── UI update ─────────────────────────────────────────────────────────────
+function updateUI(result) {
+  const r = state.reactors;
+  const p = state.personality;
+
+  // Charts
+  for (const k of ['tension', 'arousal', 'satisfaction']) {
+    chartData[k].push(r[k]);
+    if (chartData[k].length > HISTORY_LEN) chartData[k].shift();
+    charts[k].data.datasets[0].data = [...chartData[k]];
+    charts[k].update('none');
+    document.getElementById(`val-${k}`).textContent = r[k].toFixed(2);
+  }
+
+  // Gauges
+  updateGauges();
+
+  // φ bar
+  document.getElementById('phi-bar').style.width = (state.phi * 100) + '%';
+  document.getElementById('phi-val').textContent = state.phi.toFixed(3);
+  const phiLabels = [[0.05,'minimal'],[0.2,'low'],[0.5,'medium'],[0.8,'high'],[Infinity,'flow']];
+  document.getElementById('phi-text').textContent = phiLabels.find(([t]) => state.phi < t)?.[1] || 'flow';
+
+  // Spike
+  const spikeEl = document.getElementById('spike-indicator');
+  spikeEl.classList.toggle('visible', state.surpriseSpike);
+  if (state.surpriseSpike) setTimeout(() => spikeEl.classList.remove('visible'), 2500);
+
+  // Emotion
+  const col = EMOTION_COLORS[result.primary] || '#5b8aff';
+  document.getElementById('emotion-primary').textContent = result.primary;
+  document.getElementById('emotion-primary').style.color = col;
+  const blendEl = document.getElementById('emotion-blend');
+  blendEl.innerHTML = result.emotions.map(e => {
+    const c = EMOTION_COLORS[e.name] || '#5b8aff';
+    return `<span class="blend-tag" style="background:${c}18;color:${c};border:1px solid ${c}33">${e.name} ${Math.round(e.intensity*100)}%</span>`;
+  }).join('');
+
+  // Flash
+  const fp = FLASH_PHASES.find(([lo,hi]) => state.flashCount >= lo && state.flashCount <= hi);
+  document.getElementById('flash-num').textContent  = state.flashCount;
+  document.getElementById('flash-phase').textContent = fp ? fp[2] : '—';
+  document.getElementById('flash-refl').textContent  = fp ? fp[3] : '—';
+  document.getElementById('flash-header').textContent = `FLASH #${String(state.flashCount).padStart(3,'0')} · PHASE: ${fp ? fp[2].toUpperCase() : '—'}`;
+
+  // Intention
+  document.getElementById('intention-goal').textContent = state.intentGoal;
+  document.getElementById('intent-str').style.width    = (state.intentStr * 100) + '%';
+  document.getElementById('intent-str-val').textContent = state.intentStr.toFixed(2);
+  document.getElementById('intent-pers').style.width   = (state.intentPers * 100) + '%';
+  document.getElementById('intent-pers-val').textContent = state.intentPers.toFixed(2);
+
+  // ── DISSONANCE — visual effects ──
+  const d = state.dissonance;
+  const dColors = { aligned: '#4db88a', 'mild tension': '#e09b3a', 'noticeable conflict': '#e09b3a', 'strong dissonance': '#e05a5a', 'critical conflict': '#e05a5a' };
+  const dc = dColors[d.label] || '#666e82';
+  document.getElementById('diss-label').textContent = d.label;
+  const dp = document.getElementById('diss-pill');
+  dp.style.background = dc + '18'; dp.style.borderColor = dc + '44';
+  dp.style.color = dc;
+  dp.querySelector('.pill-dot').style.background = dc;
+  const descEl = document.getElementById('diss-desc');
+  descEl.style.display = d.description ? '' : 'none';
+  descEl.textContent = d.description;
+
+  // Apply dissonance classes to chat area and charts strip
+  const chatArea    = document.getElementById('chat-area');
+  const chartsStrip = document.querySelector('.charts-strip');
+  const leftPanel   = document.querySelector('.left-panel');
+  const tensionVal  = document.getElementById('val-tension');
+  const arousalVal  = document.getElementById('val-arousal');
+
+  chatArea.classList.remove('dissonance-mild','dissonance-strong','dissonance-critical');
+  chartsStrip.classList.remove('dissonance-critical');
+  leftPanel.classList.remove('dissonance-mild','dissonance-strong','dissonance-critical');
+  tensionVal.classList.remove('dissonance-pulse');
+  arousalVal.classList.remove('dissonance-pulse');
+
+  if (d.level >= 0.7) {
+    chatArea.classList.add('dissonance-critical');
+    chartsStrip.classList.add('dissonance-critical');
+    leftPanel.classList.add('dissonance-critical');
+    tensionVal.classList.add('dissonance-pulse');
+    arousalVal.classList.add('dissonance-pulse');
+    // Shake the charts strip
+    chartsStrip.style.animation = 'none';
+    requestAnimationFrame(() => {
+      chartsStrip.style.animation = 'shake 0.5s ease-in-out';
+      setTimeout(() => chartsStrip.style.animation = '', 520);
+    });
+  } else if (d.level >= 0.5) {
+    chatArea.classList.add('dissonance-strong');
+    leftPanel.classList.add('dissonance-strong');
+    tensionVal.classList.add('dissonance-pulse');
+  } else if (d.level >= 0.3) {
+    chatArea.classList.add('dissonance-mild');
+  }
+
+  // Insert dissonance banner into chat when significant
+  if (d.level >= 0.5 && result._showBanner) {
+    const bannerClass = d.level >= 0.7 ? 'critical' : 'strong';
+    const bannerText  = d.level >= 0.7
+      ? `⚠ critical dissonance — ${d.description}`
+      : `⚡ strong dissonance — ${d.description}`;
+    const area = document.getElementById('chat-area');
+    const banner = document.createElement('div');
+    banner.className = `diss-banner ${bannerClass}`;
+    banner.textContent = bannerText;
+    area.appendChild(banner);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  // Defense
+  const def = state.defense;
+  const defEl = document.getElementById('def-label');
+  const defPill = document.getElementById('def-pill');
+  if (def) {
+    defEl.textContent = def.mechanism;
+    defPill.style.background = 'rgba(167,139,250,0.1)'; defPill.style.borderColor = 'rgba(167,139,250,0.3)';
+    defPill.style.color = '#a78bfa';
+    defPill.querySelector('.pill-dot').style.background = '#a78bfa';
+  } else {
+    defEl.textContent = 'none';
+    defPill.style.background = 'rgba(255,255,255,0.04)'; defPill.style.borderColor = 'var(--border2)';
+    defPill.style.color = 'var(--muted)';
+    defPill.querySelector('.pill-dot').style.background = 'var(--muted)';
+  }
+
+  // Narrative
+  document.getElementById('narrative-text').textContent = state.narrative;
+
+  // Personality traits
+  const traitKeys = [['N','neuroticism'],['E','extraversion'],['A','agreeableness'],['C','conscientiousness'],['O','openness']];
+  for (const [k, name] of traitKeys) {
+    const val  = p[name];
+    const prev = state.prevPersonality[name];
+    const diff = val - prev;
+    document.getElementById(`tr-${k}`).style.width = (val * 100) + '%';
+    document.getElementById(`trv-${k}`).textContent = val.toFixed(3);
+    document.getElementById(`arr-${k}`).textContent = diff > 0.0005 ? '↑' : diff < -0.0005 ? '↓' : '→';
+    document.getElementById(`arr-${k}`).style.color = diff > 0.0005 ? '#4db88a' : diff < -0.0005 ? '#e05a5a' : 'var(--muted)';
+  }
+}
+
+// ── LLM call ──────────────────────────────────────────────────────────────
+const PROVIDER_HEADERS = {
+  openrouter: (key) => ({
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://github.com/anima-project',
+    'X-Title': 'Anima v6 Demonstrator',
+  }),
+  groq:       (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }),
+  together:   (key) => ({ 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }),
+};
+
+function buildSystemPrompt(result) {
+  const { primary, emotions, vad, phi, predErr, goal, pers, diss, defense } = result;
+  const blend = emotions.map(e => `${e.name} (${Math.round(e.intensity*100)}%)`).join(' + ');
+  const def_s = defense ? `${defense.mechanism} — ${defense.description}` : 'none';
+  return `<anima_inner_state>
+  primary_emotion  : ${primary}
+  blend            : ${blend}
+  valence          : ${vad[0].toFixed(3)}
+  arousal          : ${vad[1].toFixed(3)}
+  dominance        : ${vad[2].toFixed(3)}
+  phi (IIT)        : ${phi.toFixed(3)}
+  prediction_error : ${predErr.toFixed(3)}
+  intention        : '${goal}' (persistence=${pers.toFixed(2)})
+  dissonance       : ${diss.label} (${diss.level.toFixed(2)})
+  defense          : ${def_s}
+  narrative        : "${state.narrative}"
+</anima_inner_state>
+
+You are Anima — an entity with genuine inner states.
+Express this state through language only — never quote numbers or tag names.
+Rules:
+- If dissonance > 0.4: let the inner conflict show naturally
+- If defense is active: it unconsciously shapes how you speak
+- If intention strength > 0.6: hold that thread even if the topic shifts
+- Be brief (2–4 sentences) unless the moment calls for more
+- Respond in the same language the user writes in.`;
+}
+
+async function callLLM(userMsg, result) {
+  const key      = document.getElementById('api-key-input').value.trim();
+  const provider = document.getElementById('provider-select').value;
+  const model    = document.getElementById('model-input').value.trim();
+
+  if (!key || !model) return null;
+
+  const endpoint = provider === 'anthropic'
+    ? 'https://api.anthropic.com/v1/messages'
+    : PROVIDER_ENDPOINTS[provider];
+
+  const system = buildSystemPrompt(result);
+
+  try {
+    if (provider === 'anthropic') {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, max_tokens: 500, system, messages: [{ role: 'user', content: userMsg }] }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data.content[0].text;
+    } else {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: PROVIDER_HEADERS[provider](key),
+        body: JSON.stringify({ model, max_tokens: 500, temperature: 0.85, messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }] }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data.choices[0].message.content;
+    }
+  } catch (e) {
+    return null;
+  }
+}
+
+// ── Chat helpers ──────────────────────────────────────────────────────────
+function getTime() {
+  return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendMessage(role, text, meta = {}) {
+  const area = document.getElementById('chat-area');
+  const div  = document.createElement('div');
+  div.className = 'msg';
+  const col = EMOTION_COLORS[meta.emotion] || '#5b8aff';
+  const tagHtml = meta.emotion
+    ? `<span class="msg-emotion-tag" style="background:${col}18;color:${col};border:1px solid ${col}33">${meta.emotion}</span>`
+    : '';
+  div.innerHTML = `
+    <div class="msg-avatar ${role}">${role === 'user' ? 'U' : 'A'}</div>
+    <div class="msg-body">
+      <div class="msg-meta"><span>${role === 'user' ? 'You' : 'Anima'}</span><span>${getTime()}</span>${tagHtml}</div>
+      <div class="msg-text ${role === 'anima' ? 'anima-text' : ''}">${escHtml(text)}</div>
+      ${meta.narrative ? `<div class="msg-narrative">${escHtml(meta.narrative)}</div>` : ''}
+    </div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+function showThinking() {
+  const area = document.getElementById('chat-area');
+  const div  = document.createElement('div');
+  div.className = 'msg'; div.id = 'thinking-msg';
+  div.innerHTML = `
+    <div class="msg-avatar anima">A</div>
+    <div class="msg-body">
+      <div class="msg-meta"><span>Anima</span><span>${getTime()}</span></div>
+      <div class="msg-text anima-text"><div class="thinking-dots"><span></span><span></span><span></span></div></div>
+    </div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking-msg');
+  if (el) el.remove();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Send handler ──────────────────────────────────────────────────────────
+let busy = false;
+
+async function handleSend() {
+  if (busy) return;
+  const input  = document.getElementById('chat-input');
+  const sendBtn= document.getElementById('send-btn');
+  const text   = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  busy = true;
+  sendBtn.disabled = true;
+
+  appendMessage('user', text);
+
+  state.prevPersonality = { ...state.personality };
+  const result = experience({ arousal: 0.05, cohesion: 0.05 }, text);
+  result._showBanner = true;
+  updateUI(result);
+
+  const key = document.getElementById('api-key-input').value.trim();
+  let response;
+
+  if (key) {
+    showThinking();
+    response = await callLLM(text, result);
+    removeThinking();
+    if (!response) response = buildFallbackResponse(result);
+  } else {
+    response = buildFallbackResponse(result);
+  }
+
+  appendMessage('anima', response, {
+    emotion: result.primary,
+    narrative: state.narrative,
+  });
+
+  busy = false;
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+function buildFallbackResponse(result) {
+  const { primary, diss, defense } = result;
+  let r = NARRATIVE_TMPL[primary] || "I'm here.";
+  if (defense) r += ` ${defense.description}`;
+  if (diss.level > 0.4) r += ` ${diss.description}`;
+  r += '\n\n[demo mode — enter an API key above to enable live LLM responses]';
+  return r;
+}
+
+// ── Snapshot system ────────────────────────────────────────────────────────
+function captureSnapshot() {
+  const emotionCounts = {};
+  for (const e of state.emotionLog) emotionCounts[e] = (emotionCounts[e] || 0) + 1;
+  return {
+    timestamp: new Date().toISOString(),
+    flashCount: state.flashCount,
+    personality: { ...state.personality },
+    personalityStart: { ...PERSONALITY_START },
+    reactors: { ...state.reactors },
+    narrative: state.narrative,
+    emotionFrequency: emotionCounts,
+    primaryEmotion: state.primary,
+    metrics: {
+      peakTension:           +state.peakTension.toFixed(3),
+      peakArousal:           +state.peakArousal.toFixed(3),
+      minSatisfaction:       +state.minSatisfaction.toFixed(3),
+      totalDissonanceEvents: state.totalDissonanceEvents,
+      totalDefenseEvents:    state.totalDefenseEvents,
+      surpriseSpikes:        state.surpriseSpikes,
+      currentPhi:            +state.phi.toFixed(3),
+    },
+  };
+}
+
+function updateSnapshotBtn() {
+  const btn      = document.getElementById('snapshot-btn');
+  const progress = document.getElementById('snapshot-progress');
+  const label    = document.getElementById('snapshot-btn-label');
+  const fc = state.flashCount;
+  progress.textContent = `${fc} / 100 flashes`;
+
+  const milestoneHit = [25,50,100,200].find(m => state.milestoneSnapshots[m] && fc === m);
+  if (milestoneHit) {
+    btn.classList.add('milestone');
+    label.textContent = `milestone snapshot — flash ${milestoneHit}!`;
+    setTimeout(() => {
+      btn.classList.remove('milestone');
+      label.textContent = 'personality snapshot';
+    }, 4000);
+  }
+}
+
+function renderSnapshotModal(snap) {
+  const traitKeys = ['neuroticism','extraversion','agreeableness','conscientiousness','openness'];
+  const traitColors = { neuroticism:'#e05a5a', extraversion:'#e09b3a', agreeableness:'#4db88a', conscientiousness:'#5b8aff', openness:'#a78bfa' };
+
+  document.getElementById('modal-heading').textContent = `After ${snap.flashCount} Flashes`;
+  document.getElementById('snap-narrative').textContent = snap.narrative;
+
+  // Traits comparison
+  const traitsEl = document.getElementById('snap-traits');
+  traitsEl.innerHTML = traitKeys.map(name => {
+    const cur   = snap.personality[name];
+    const start = snap.personalityStart[name];
+    const diff  = cur - start;
+    const color = traitColors[name] || '#5b8aff';
+    const diffClass = diff > 0.002 ? 'delta-pos' : diff < -0.002 ? 'delta-neg' : 'delta-neu';
+    const diffSign  = diff > 0.002 ? '+' : '';
+    const startPct  = Math.round(start * 100);
+    const curPct    = Math.round(cur * 100);
+    // Show delta bar on top of start bar
+    const deltaLeft = diff >= 0 ? startPct : curPct;
+    const deltaW    = Math.abs(Math.round(diff * 100));
+    const deltaColor= diff > 0 ? '#4db88a' : '#e05a5a';
+    return `<div class="snap-trait-row">
+      <span class="snap-trait-name">${name.slice(0,9)}</span>
+      <div class="snap-bar-bg">
+        <div class="snap-bar-fill" style="width:${startPct}%;background:rgba(255,255,255,0.15)"></div>
+        <div class="snap-bar-delta" style="left:${deltaLeft}%;width:${deltaW}%;background:${deltaColor}"></div>
+      </div>
+      <span class="snap-val" style="color:${color}">${cur.toFixed(3)}</span>
+      <span class="snap-delta-label ${diffClass}">${diffSign}${diff.toFixed(3)}</span>
+    </div>`;
+  }).join('');
+
+  // Reactor state
+  const reactorColors = { tension:'#e05a5a', arousal:'#e09b3a', satisfaction:'#4db88a', cohesion:'#5b8aff' };
+  const reactorsEl = document.getElementById('snap-reactors');
+  reactorsEl.innerHTML = Object.entries(snap.reactors).map(([k,v]) => {
+    const base = BASELINE[k];
+    const col  = reactorColors[k] || '#5b8aff';
+    return `<div class="snap-reactor-row">
+      <span class="snap-reactor-name">${k}</span>
+      <div class="snap-reactor-vals">
+        <span class="snap-reactor-start">${base.toFixed(2)}</span>
+        <span class="snap-reactor-arrow">→</span>
+        <span class="snap-reactor-end" style="color:${col}">${v.toFixed(3)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Emotion frequency (top 5)
+  const sorted = Object.entries(snap.emotionFrequency).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const total  = Object.values(snap.emotionFrequency).reduce((a,b)=>a+b,0);
+  const emotionsEl = document.getElementById('snap-emotions');
+  emotionsEl.innerHTML = sorted.map(([name,count]) => {
+    const pct = Math.round(count/total*100);
+    const col = EMOTION_COLORS[name] || '#666e82';
+    return `<div class="snap-emotion-item">
+      <span class="snap-emotion-name" style="color:${col}">${name}</span>
+      <span class="snap-emotion-count">${count}× (${pct}%)</span>
+    </div>`;
+  }).join('');
+
+  // Metrics
+  const m = snap.metrics;
+  document.getElementById('snap-metrics').innerHTML = [
+    `peak tension       <span style="color:#e05a5a;margin-left:auto">${m.peakTension}</span>`,
+    `peak arousal       <span style="color:#e09b3a;margin-left:auto">${m.peakArousal}</span>`,
+    `min satisfaction   <span style="color:#4db88a;margin-left:auto">${m.minSatisfaction}</span>`,
+    `dissonance events  <span style="color:#e05a5a;margin-left:auto">${m.totalDissonanceEvents}</span>`,
+    `defense events     <span style="color:#a78bfa;margin-left:auto">${m.totalDefenseEvents}</span>`,
+    `surprise spikes    <span style="color:#e09b3a;margin-left:auto">${m.surpriseSpikes}</span>`,
+    `current φ          <span style="color:#a78bfa;margin-left:auto">${m.currentPhi}</span>`,
+  ].map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border)">${s}</div>`).join('');
+}
+
+function openSnapshot() {
+  const snap = captureSnapshot();
+  renderSnapshotModal(snap);
+  document.getElementById('modal-bg').classList.add('open');
+  document.getElementById('modal-download').onclick = () => {
+    const blob = new Blob([JSON.stringify(snap, null, 2)], {type:'application/json'});
+    const a    = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `anima-snapshot-flash${snap.flashCount}.json`;
+    a.click();
+  };
+}
+
+document.getElementById('snapshot-btn').addEventListener('click', openSnapshot);
+document.getElementById('modal-close').addEventListener('click',  () => document.getElementById('modal-bg').classList.remove('open'));
+document.getElementById('modal-close2').addEventListener('click', () => document.getElementById('modal-bg').classList.remove('open'));
+document.getElementById('modal-bg').addEventListener('click', e => { if (e.target === document.getElementById('modal-bg')) document.getElementById('modal-bg').classList.remove('open'); });
+
+// ── Stimulus buttons ──────────────────────────────────────────────────────
+document.querySelectorAll('.stim-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const stim = btn.dataset.stim;
+    const delta = STIMULUS_MAP[stim];
+    if (!delta) return;
+    state.prevPersonality = { ...state.personality };
+    const result = experience(delta, '');
+    result._showBanner = true;
+    updateUI(result);
+
+    const area = document.getElementById('chat-area');
+    const div  = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;animation:fadeUp .2s ease';
+    div.innerHTML = `<span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px">⟳ stimulus: ${stim}</span>`;
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+  });
+});
+
+// ── Input events ──────────────────────────────────────────────────────────
+document.getElementById('send-btn').addEventListener('click', handleSend);
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+});
+
+// API key status
+document.getElementById('api-key-input').addEventListener('input', () => {
+  const key = document.getElementById('api-key-input').value.trim();
+  const statusEl = document.getElementById('api-status');
+  if (!key) {
+    statusEl.textContent = '— no key entered, running in demo mode';
+    statusEl.className = 'api-status warn';
+  } else {
+    statusEl.textContent = '✓ key entered — LLM responses enabled';
+    statusEl.className = 'api-status ok';
+  }
+});
+
+document.getElementById('provider-select').addEventListener('change', () => {
+  const p = document.getElementById('provider-select').value;
+  const defaults = {
+    openrouter: 'google/gemini-2.5-pro-preview',
+    groq:       'llama-4-maverick-17b-128e-instruct',
+    together:   'deepseek-ai/DeepSeek-R1',
+    anthropic:  'claude-opus-4-5-20251101',
+  };
+  document.getElementById('model-input').value = defaults[p] || '';
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+updateGauges();
+drawGauge('gauge-tension',      BASELINE.tension,      GAUGE_COLORS.tension);
+drawGauge('gauge-arousal',      BASELINE.arousal,      GAUGE_COLORS.arousal);
+drawGauge('gauge-satisfaction', BASELINE.satisfaction, GAUGE_COLORS.satisfaction);
+drawGauge('gauge-cohesion',     BASELINE.cohesion,     GAUGE_COLORS.cohesion);
+
+document.getElementById('chat-input').focus();
+</script>
+</body>
+</html>
